@@ -1,0 +1,12 @@
+REVISI LENGKAP MAGANGSTO (20 file)
+
+1. Cadangkan database dulu (export db_magangsto di phpMyAdmin).
+2. Ekstrak zip ini ke folder project (yang ada file "artisan"), pilih TIMPA SEMUA.
+3. HAPUS manual:
+   - app/Http/Controllers/LaporanController.php
+   - folder resources/views/laporan
+4. Terminal, dari folder project:
+   php artisan migrate
+   php artisan view:clear
+5. Ctrl+F5 di browser.
+6. Urutan upload: (a) Data ODP > Upload Excel ODP (ODP.zip), (b) Upload Data Master (Excel DATA MASTER).
