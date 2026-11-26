@@ -16,6 +16,7 @@ class SinkronOdp extends Command
     {
         $dariKpro = Odp::isiDariKpro();
         $dariSc   = Odp::isiDariScOrder();
+        $dariSvc  = Odp::isiDariServicenum();
         Odp::hubungkanOdpId();
 
         $ada    = fn ($kol) => DB::table($kol[0])->whereNotNull($kol[1])->where($kol[1], '!=', '');
@@ -31,6 +32,7 @@ class SinkronOdp extends Command
 
         $this->info("{$dariKpro} order diisi nama ODP-nya dari KPRO (WONUM sama).");
         $this->info("{$dariSc} order diisi nama ODP-nya dari WO lain di SC Order yang sama.");
+        $this->info("{$dariSvc} order diisi nama ODP-nya dari WO lain di Service Num yang sama.");
         $this->newLine();
         $this->table(['Hitungan', 'Jumlah'], [
             ['Order di Data Monitoring', $totalOrder],

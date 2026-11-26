@@ -24,8 +24,8 @@ class DashboardController extends Controller
         // === Filter by role: teknisi cuma lihat STO-nya sendiri ===
         $query->untukUser($user);
 
-        // === Filter periode ===
-        $periode = $request->input('periode', '30hari');
+        // === Filter periode (default 'semua' agar seluruh data tetap tampil walau tanggal order > 30 hari) ===
+        $periode = $request->input('periode', 'semua');
         $dari = match ($periode) {
             'hariini'  => today(),
             '7hari'    => now()->subDays(6)->startOfDay(),
@@ -40,6 +40,20 @@ class DashboardController extends Controller
 
         // Basis query yang udah ke-filter role & periode
         $basis = (clone $query);
+        $statusSelesai = ['COMPWORK', 'COMPLETE'];
+
+        // Grafik TTR: 30 hari terakhir dari hari ini; jika kosong, ambil 30 hari terakhir dari tanggal data terbaru.
+        $ttrBasis = Monitoring::query()->untukUser($user);
+        $ttrMulai = now()->subDays(29)->startOfDay();
+        $ttrLabel = '30 hari terakhir';
+        if (! (clone $ttrBasis)->whereDate('datecreated', '>=', $ttrMulai)->exists()) {
+            $maxTgl = (clone $ttrBasis)->max('datecreated');
+            if ($maxTgl) {
+                $akhir    = \Carbon\Carbon::parse($maxTgl)->endOfDay();
+                $ttrMulai = $akhir->copy()->subDays(29)->startOfDay();
+                $ttrLabel = $ttrMulai->format('d/m/Y') . ' – ' . $akhir->format('d/m/Y');
+            }
+        }
 
         // === Data untuk kartu-kartu dashboard ===
         $data = [
@@ -71,19 +85,20 @@ class DashboardController extends Controller
             // Kartu baris 2 — Order
             'totalOrder'      => (clone $basis)->count(),
             'ov'              => (clone $basis)->whereNotNull('errorcode_akhir')->count(),
-            'comply'          => (clone $basis)->where('status', 'COMPWORK')->count(),
+            'comply'          => (clone $basis)->whereIn('status', $statusSelesai)->count(),
 
             // Kartu baris 3 — Milestone penugasan
             'unassigned'      => (clone $basis)->whereNull('chief_name')->count(),
             'assigned'        => (clone $basis)->whereNotNull('chief_name')->where('status', 'STARTWORK')->count(),
             'progress'        => (clone $basis)->where('status', 'CONTWORK')->count(),
-            'done'            => (clone $basis)->where('status', 'COMPWORK')->count(),
+            'done'            => (clone $basis)->whereIn('status', $statusSelesai)->count(),
 
-            // Grafik TTR — harian dalam 30 hari terakhir (gak kena filter periode)
-            'ttrHarian'       => (clone $query)
-                                    ->whereDate('datecreated', '>=', now()->subDays(29)->startOfDay())
+            // Grafik TTR — harian dalam rentang 30 hari
+            'ttrLabel'        => $ttrLabel,
+            'ttrHarian'       => (clone $ttrBasis)
+                                    ->where('datecreated', '>=', $ttrMulai)
                                     ->selectRaw('DATE(datecreated) as tanggal')
-                                    ->selectRaw("SUM(CASE WHEN status = 'COMPWORK' THEN 1 ELSE 0 END) as comply")
+                                    ->selectRaw("SUM(CASE WHEN status IN ('COMPWORK', 'COMPLETE') THEN 1 ELSE 0 END) as comply")
                                     ->selectRaw("SUM(CASE WHEN errorcode_akhir IS NOT NULL THEN 1 ELSE 0 END) as overtime")
                                     ->selectRaw('ROUND(AVG(durasi_tti), 2) as avg_ttr')
                                     ->groupBy('tanggal')
@@ -139,17 +154,17 @@ class DashboardController extends Controller
             'teknisi'    => $data['daftarTeknisi'],
             'order'      => (clone $basis)->latest('datecreated')->limit(100)->get(),
             'ov'         => (clone $basis)->whereNotNull('errorcode_akhir')->latest('datecreated')->limit(100)->get(),
-            'comply'     => (clone $basis)->where('status', 'COMPWORK')->latest('datecreated')->limit(100)->get(),
+            'comply'     => (clone $basis)->whereIn('status', $statusSelesai)->latest('datecreated')->limit(100)->get(),
             'unassigned' => (clone $basis)->whereNull('chief_name')->latest('datecreated')->limit(100)->get(),
             'assigned'   => (clone $basis)->whereNotNull('chief_name')->where('status', 'STARTWORK')->latest('datecreated')->limit(100)->get(),
             'progress'   => (clone $basis)->where('status', 'CONTWORK')->latest('datecreated')->limit(100)->get(),
-            'done'       => (clone $basis)->where('status', 'COMPWORK')->latest('datecreated')->limit(100)->get(),
+            'done'       => (clone $basis)->whereIn('status', $statusSelesai)->latest('datecreated')->limit(100)->get(),
         ];
 
         return view('dashboard', $data);
     }
 
-    private function rekapPerWilayah($user, string $periode = '30hari')
+    private function rekapPerWilayah($user, string $periode = 'semua')
     {
         $dari = match ($periode) {
             'hariini'  => today(),
@@ -168,20 +183,35 @@ class DashboardController extends Controller
             }
         }
 
-        $filterPeriode = fn ($q) => $dari ? $q->where('datecreated', '>=', $dari) : $q;
+        $statsPerSto = Monitoring::query()
+            ->untukUser($user)
+            ->when($dari, fn ($q) => $q->where('datecreated', '>=', $dari))
+            ->whereNotNull('sto')
+            ->select('sto')
+            ->selectRaw('SUM(CASE WHEN errorcode_akhir IS NOT NULL THEN 1 ELSE 0 END) as ov_count')
+            ->selectRaw("SUM(CASE WHEN status IN ('COMPWORK', 'COMPLETE') THEN 1 ELSE 0 END) as comply_count")
+            ->selectRaw('SUM(CASE WHEN chief_name IS NULL THEN 1 ELSE 0 END) as unassigned_count')
+            ->selectRaw("SUM(CASE WHEN chief_name IS NOT NULL AND status = 'STARTWORK' THEN 1 ELSE 0 END) as assigned_count")
+            ->selectRaw("SUM(CASE WHEN status = 'CONTWORK' THEN 1 ELSE 0 END) as progress_count")
+            ->groupBy('sto')
+            ->get()
+            ->keyBy('sto');
 
         $perSto = $stoQuery
-            ->withCount([
-                'monitorings as ov_count'         => fn ($q) => $filterPeriode($q)->whereNotNull('errorcode_akhir'),
-                'monitorings as comply_count'     => fn ($q) => $filterPeriode($q)->where('status', 'COMPWORK'),
-                'monitorings as unassigned_count' => fn ($q) => $filterPeriode($q)->whereNull('chief_name'),
-                'monitorings as assigned_count'   => fn ($q) => $filterPeriode($q)->whereNotNull('chief_name')->where('status', 'STARTWORK'),
-                'monitorings as progress_count'   => fn ($q) => $filterPeriode($q)->where('status', 'CONTWORK'),
-                'monitorings as done_count'       => fn ($q) => $filterPeriode($q)->where('status', 'COMPWORK'),
-            ])
             ->orderBy('wilayah')
             ->orderBy('kode_sto')
-            ->get();
+            ->get()
+            ->map(function ($s) use ($statsPerSto) {
+                $st = $statsPerSto->get($s->kode_sto);
+                $s->ov_count         = (int) ($st->ov_count ?? 0);
+                $s->comply_count     = (int) ($st->comply_count ?? 0);
+                $s->unassigned_count = (int) ($st->unassigned_count ?? 0);
+                $s->assigned_count   = (int) ($st->assigned_count ?? 0);
+                $s->progress_count   = (int) ($st->progress_count ?? 0);
+                $s->done_count       = $s->comply_count;
+
+                return $s;
+            });
 
         return $perSto->groupBy('wilayah')->map(function ($stoDalamWilayah, $wilayah) {
             return [

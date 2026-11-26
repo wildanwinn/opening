@@ -82,8 +82,8 @@
 @php
     $wib = now('Asia/Jakarta');
     $sapa = $wib->hour < 11 ? 'Selamat pagi' : ($wib->hour < 15 ? 'Selamat siang' : ($wib->hour < 18 ? 'Selamat sore' : 'Selamat malam'));
-    $periodeAktif = request('periode', '30hari');
-    $daftarPeriode = ['hariini' => 'Hari ini', '7hari' => '7 hari', '30hari' => '30 hari', 'bulanini' => 'Bulan ini'];
+    $periodeAktif = request('periode', 'semua');
+    $daftarPeriode = ['semua' => 'Semua data', 'hariini' => 'Hari ini', '7hari' => '7 hari', '30hari' => '30 hari', 'bulanini' => 'Bulan ini'];
     $namaDepan = \Illuminate\Support\Str::title(\Illuminate\Support\Str::words(auth()->user()->nama, 1, ''));
 @endphp
 <div class="banner-sapa">
@@ -92,7 +92,7 @@
             <div class="flex-shrink-0 d-none d-sm-block" style="margin-bottom:-.4rem;">@include('partials.maskot-kucing', ['ukuran' => 76, 'kelas' => 'pelan'])</div>
             <div>
             <h2 class="sapa">{{ $sapa }}, {{ $namaDepan }}</h2>
-            <p class="ringkas">Ringkasan operasional &mdash; {{ strtolower($daftarPeriode[$periodeAktif] ?? '30 hari') }}{{ ($periodeAktif === '7hari' || $periodeAktif === '30hari') ? ' terakhir' : '' }}.</p>
+            <p class="ringkas">Ringkasan operasional &mdash; {{ strtolower($daftarPeriode[$periodeAktif] ?? 'semua data') }}{{ ($periodeAktif === '7hari' || $periodeAktif === '30hari') ? ' terakhir' : '' }}.</p>
             </div>
         </div>
         <div class="chip-tanggal">
@@ -190,7 +190,7 @@
 <div class="row g-3">
     <div class="col-lg-6">
         <div class="panel-gelap">
-            <div class="kepala">TTR Performance <span class="sub">30 hari terakhir</span></div>
+            <div class="kepala">TTR Performance <span class="sub">{{ $ttrLabel ?? '30 hari terakhir' }}</span></div>
             <div class="p-3">
                 @if($ttrHarian->isEmpty())
                     <div class="text-center py-5" style="color: var(--teks-mute);">

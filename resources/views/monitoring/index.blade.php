@@ -111,7 +111,10 @@
 
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
             <h5 class="mb-0 fw-bold" style="color: var(--teks);">Data Monitoring</h5>
-            <small style="color: var(--teks-mute);">Total: {{ $dataMonitoring->total() }} order</small>
+            <small style="color: var(--teks-mute);">
+                Total: {{ number_format($dataMonitoring->total()) }} order
+                · <strong style="color: var(--teks);">{{ number_format($totalCocokOdp) }}</strong> terhubung ODP
+            </small>
         </div>
 
         <form action="{{ route('monitoring.index') }}" method="GET" class="row g-2 mb-4 align-items-center">
@@ -121,7 +124,7 @@
                        placeholder="Cari WONUM / SC Order / Pelanggan / ODP"
                        style="height: 38px;">
             </div>
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-2">
                 <select name="sto" id="comboSto">
                     <option value="">-- Semua STO --</option>
                     @foreach($daftarSto as $s)
@@ -131,7 +134,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-2">
                 <select name="status" id="comboStatus">
                     <option value="">-- Semua Status --</option>
                     @foreach($daftarStatus as $kode => $label)
@@ -148,11 +151,19 @@
                     <option value="tidak" @selected(request('tsel') === 'tidak')>Hanya non TSEL</option>
                 </select>
             </div>
-            <div class="col-12 col-md-3 d-flex gap-1">
+            <div class="col-6 col-md-2">
+                <select name="odp" class="form-select form-select-sm" style="height: 38px;" aria-label="Filter ODP">
+                    <option value="">Semua ODP</option>
+                    <option value="cocok" @selected(request('odp') === 'cocok')>Terhubung ODP &amp; Lat/Long</option>
+                    <option value="ada" @selected(request('odp') === 'ada')>Ada Nama ODP</option>
+                    <option value="kosong" @selected(request('odp') === 'kosong')>Belum Ada ODP</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-1 d-flex gap-1">
                 <button type="submit" class="btn btn-danger btn-sm flex-grow-1" style="height: 38px;">
-                    <i class="bi bi-search"></i> Filter
+                    <i class="bi bi-search"></i>
                 </button>
-                @if(request()->hasAny(['sto', 'status', 'cari', 'tsel']))
+                @if(request()->hasAny(['sto', 'status', 'cari', 'tsel', 'odp']))
                     <a href="{{ route('monitoring.index') }}" class="btn btn-outline-secondary btn-sm"
                        style="height: 38px;" title="Reset">
                         <i class="bi bi-x-lg"></i>
@@ -266,7 +277,7 @@
                     <tr>
                         <td colspan="26" class="text-center py-4" style="color: var(--teks-mute);">
                             Belum ada data monitoring.
-                            @if(request()->hasAny(['sto', 'status', 'cari', 'tsel']))
+                            @if(request()->hasAny(['sto', 'status', 'cari', 'tsel', 'odp']))
                                 <br>
                                 <a href="{{ route('monitoring.index') }}" class="btn btn-sm btn-outline-secondary mt-2">
                                     Reset Filter

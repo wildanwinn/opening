@@ -62,7 +62,7 @@ class Odp extends Model
      */
     public static function sinkronkanMonitoring(): int
     {
-        $isi = self::isiDariKpro() + self::isiDariScOrder();
+        $isi = self::isiDariKpro() + self::isiDariScOrder() + self::isiDariServicenum();
         self::hubungkanOdpId();
 
         return $isi;
@@ -174,10 +174,32 @@ class Odp extends Model
         return $jumlah;
     }
 
+    public static function isiDariServicenum(): int
+    {
+        $jumlah = 0;
+
+        $kandidat = DB::table('monitorings as a')
+            ->join('monitorings as b', 'b.servicenum', '=', 'a.servicenum')
+            ->where(fn ($q) => $q->whereNull('a.odp_name')->orWhere('a.odp_name', ''))
+            ->whereNotNull('a.servicenum')->where('a.servicenum', '!=', '')
+            ->whereNotNull('b.odp_name')->where('b.odp_name', '!=', '')
+            ->groupBy('a.id')
+            ->havingRaw('COUNT(DISTINCT b.odp_name) = 1')
+            ->select('a.id', DB::raw('MIN(b.odp_name) as nama'))
+            ->get();
+
+        foreach ($kandidat as $k) {
+            $jumlah += DB::table('monitorings')->where('id', $k->id)->update(['odp_name' => $k->nama]);
+        }
+
+        return $jumlah;
+    }
+
     public static function hubungkanOdpId(): void
     {
         if (Schema::hasColumn('monitorings', 'odp_id')) {
-            DB::update('UPDATE monitorings SET odp_id = (SELECT odps.id FROM odps WHERE odps.nama_odp = monitorings.odp_name LIMIT 1) WHERE odp_name IS NOT NULL');
+            DB::update("UPDATE monitorings SET odp_id = (SELECT odps.id FROM odps WHERE odps.nama_odp = monitorings.odp_name LIMIT 1) WHERE odp_name IS NOT NULL AND odp_name != ''");
+            DB::update("UPDATE monitorings SET odp_id = NULL WHERE odp_name IS NULL OR odp_name = ''");
         }
     }
 

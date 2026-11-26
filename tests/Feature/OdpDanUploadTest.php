@@ -191,4 +191,37 @@ class OdpDanUploadTest extends TestCase
         Odp::create(['nama_odp' => 'ODP-BARU-1', 'latitude' => -7.1, 'longitude' => 110.1]);
         $this->assertNotNull(Monitoring::where('wonum', 'W7')->first()->odp);
     }
+
+    public function test_dashboard_tampilkan_semua_data_dan_header_keamanan(): void
+    {
+        Sto::create(['kode_sto' => 'TEG', 'nama_sto' => 'Tegal', 'wilayah' => 'Tegal']);
+        Monitoring::create(['wonum' => 'W-OLD-1', 'sto' => 'TEG', 'status' => 'COMPWORK', 'datecreated' => now()->subDays(60)]);
+        Monitoring::create(['wonum' => 'W-OLD-2', 'sto' => 'TEG', 'status' => 'COMPLETE', 'datecreated' => now()->subDays(45)]);
+
+        $res = $this->actingAs($this->admin())->get(route('dashboard'));
+        $res->assertOk()
+            ->assertViewHas('totalOrder', 2)
+            ->assertViewHas('comply', 2)
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+    }
+
+    public function test_sinkron_servicenum_dan_filter_odp_monitoring(): void
+    {
+        $odp = Odp::create(['nama_odp' => 'ODP-TEG-FA/001', 'sto' => 'TEG', 'latitude' => -6.87, 'longitude' => 109.12]);
+        Monitoring::create(['wonum' => 'W-SVC-1', 'sto' => 'TEG', 'servicenum' => '1311001', 'odp_name' => 'ODP-TEG-FA/001']);
+        Monitoring::create(['wonum' => 'W-SVC-2', 'sto' => 'TEG', 'servicenum' => '1311001', 'odp_name' => null]);
+        Monitoring::create(['wonum' => 'W-SVC-3', 'sto' => 'TEG', 'servicenum' => '1311002', 'odp_name' => null]);
+
+        $terisi = Odp::sinkronkanMonitoring();
+        $this->assertSame(1, $terisi);
+        $this->assertSame($odp->id, Monitoring::where('wonum', 'W-SVC-2')->first()->odp_id);
+
+        $admin = $this->admin();
+        $this->actingAs($admin)->get(route('monitoring.index', ['odp' => 'cocok']))
+            ->assertOk()
+            ->assertSee('W-SVC-1')
+            ->assertSee('W-SVC-2')
+            ->assertDontSee('W-SVC-3');
+    }
 }

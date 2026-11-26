@@ -259,6 +259,13 @@
                         <i class="bi bi-clipboard-data"></i> <span>Data Monitoring</span>
                     </a>
                 </li>
+                @if(in_array(auth()->user()->role, ['admin', 'hd'], true))
+                    <li>
+                        <a href="{{ route('tugas.index') }}" class="{{ request()->routeIs('tugas.*') ? 'active' : '' }}">
+                            <i class="bi bi-phone"></i> <span>Mode Teknisi</span>
+                        </a>
+                    </li>
+                @endif
             </ul>
 
             @if(auth()->user()->isAdmin())

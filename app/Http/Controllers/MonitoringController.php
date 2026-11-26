@@ -43,7 +43,7 @@ class MonitoringController extends Controller
     public function index(Request $request)
     {
         $user  = Auth::user();
-        $query = Monitoring::query()->with(['odp', 'bima', 'tsel']);
+        $query = Monitoring::query()->with(['odp', 'bima', 'tsel', 'kpro']);
 
         // Teknisi hanya bisa lihat data miliknya / STO-nya sendiri
         $query->untukUser($user);
@@ -67,6 +67,14 @@ class MonitoringController extends Controller
             $query->whereDoesntHave('tsel');
         }
 
+        if ($request->input('odp') === 'cocok') {
+            $query->whereNotNull('odp_id');
+        } elseif ($request->input('odp') === 'ada') {
+            $query->whereNotNull('odp_name')->where('odp_name', '!=', '');
+        } elseif ($request->input('odp') === 'kosong') {
+            $query->where(fn ($q) => $q->whereNull('odp_name')->orWhere('odp_name', ''));
+        }
+
         // Pencarian bebas (WONUM / nama pelanggan / service number / SCORDERNO / ODP)
         if ($request->filled('cari')) {
             $cari = $request->cari;
@@ -85,8 +93,15 @@ class MonitoringController extends Controller
             $daftarStatus[$k] = self::DAFTAR_STATUS[$k] ?? $k;
         }
 
+        $totalCocokOdp = Monitoring::query()->untukUser($user)->whereNotNull('odp_id')->count();
+
         return view('monitoring.index', [
-            'dataMonitoring' => $query->latest('datecreated')->paginate(25)->withQueryString(),
+            'dataMonitoring' => $query
+                ->orderByRaw("CASE WHEN odp_id IS NOT NULL THEN 0 WHEN odp_name IS NOT NULL AND odp_name != '' THEN 1 ELSE 2 END")
+                ->latest('datecreated')
+                ->paginate(25)
+                ->withQueryString(),
+            'totalCocokOdp'  => $totalCocokOdp,
             'daftarSto'      => Sto::orderBy('wilayah')->orderBy('kode_sto')->get(),
             'daftarStatus'   => $daftarStatus,
             'bisaEdit'       => $this->bisaEdit($user),
